@@ -5,7 +5,6 @@ import { useDropzone } from 'react-dropzone';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { 
   Search, 
-  ArrowRight, 
   Star, 
   ExternalLink, 
   AlertCircle,
@@ -14,12 +13,10 @@ import {
   Keyboard,
   X,
   BarChart4,
-  ChevronLeft,
-  ChevronRight,
   ArrowUpRight,
   ArrowDownRight,
-  Info,
-  Check
+  Check,
+  ChevronLeft
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -34,6 +31,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import axios from 'axios';
 
 // Chart.js kayıt
 ChartJS.register(
@@ -50,28 +48,24 @@ ChartJS.register(
 // Input metodları
 type InputMethod = 'manual' | 'camera' | 'upload';
 
-// Test ürün verisi
-const TEST_PRODUCT = {
-  asin: 'B0CHX3QBCH',
-  title: "Apple USB-C to USB-C Charge Cable (2m)",
-  currentPrice: 19.99,
-  previousPrice: 24.99,
-  imageUrl: "https://m.media-amazon.com/images/I/411aTMUWgPL._AC_SL1000_.jpg",
-  lastUpdated: new Date().toISOString(),
-  priceHistory: [
-    { date: '2024-01-01', price: 24.99 },
-    { date: '2024-01-02', price: 22.99 },
-    { date: '2024-01-03', price: 21.99 },
-    { date: '2024-01-04', price: 23.99 },
-    { date: '2024-01-05', price: 20.99 },
-    { date: '2024-01-06', price: 19.99 }
-  ],
+// Ürün veri tipi
+interface ProductData {
+  asin: string;
+  title: string;
+  currentPrice: number;
+  previousPrice: number;
+  imageUrl: string;
+  lastUpdated: string;
+  priceHistory: {
+    date: string;
+    price: number;
+  }[];
   stats: {
-    lowestPrice: 19.99,
-    highestPrice: 24.99,
-    averagePrice: 22.49
-  }
-};
+    lowestPrice: number;
+    highestPrice: number;
+    averagePrice: number;
+  };
+}
 
 export default function Scanner() {
   const [inputMethod, setInputMethod] = useState<InputMethod>('manual');
@@ -79,126 +73,139 @@ export default function Scanner() {
   const [manualInput, setManualInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [productData, setProductData] = useState<any>(null);
+  const [productData, setProductData] = useState<ProductData | null>(null);
   const [showResults, setShowResults] = useState(false);
   const scannerRef = useRef<any>(null);
   
   const isMobile = useMediaQuery('(max-width: 768px)');
-
-  // Dropzone setup
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: {
-      'image/*': ['.jpeg', '.jpg', '.png']
-    },
-    maxFiles: 1,
-    onDrop: handleImageDrop
-  });
-
-  // Chart data
-  const chartData = {
-    labels: productData?.priceHistory.map((h: any) => 
-      new Date(h.date).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' })
-    ) || [],
-    datasets: [
-      {
-        label: 'Fiyat Değişimi',
-        data: productData?.priceHistory.map((h: any) => h.price) || [],
-        borderColor: 'rgb(99, 102, 241)',
-        backgroundColor: (context: any) => {
-          const ctx = context.chart.ctx;
-          const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-          gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)');
-          gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
-          return gradient;
+    // Dropzone setup
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+        accept: {
+          'image/*': ['.jpeg', '.jpg', '.png']
         },
-        fill: true,
-        tension: 0.4,
-        pointRadius: isMobile ? 3 : 5,
-        pointHoverRadius: isMobile ? 5 : 8,
-        borderWidth: 2,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      tooltip: {
-        mode: 'index' as const,
-        intersect: false,
-        backgroundColor: 'white',
-        titleColor: 'rgb(51, 65, 85)',
-        bodyColor: 'rgb(71, 85, 105)',
-        borderColor: 'rgb(226, 232, 240)',
-        borderWidth: 1,
-        padding: 12,
-        bodyFont: {
-          size: 14
-        },
-        titleFont: {
-          size: 14,
-          weight: 'bold'
-        },
-        displayColors: false,
-        callbacks: {
-          label: function(context: any) {
-            return `$${context.raw.toFixed(2)}`;
+        maxFiles: 1,
+        onDrop: handleImageDrop
+      });
+    
+      // Chart data
+      const chartData = {
+        labels: productData?.priceHistory.map((h) => 
+          new Date(h.date).toLocaleDateString('tr-TR', { month: 'short', day: 'numeric' })
+        ) || [],
+        datasets: [
+          {
+            label: 'Fiyat Değişimi',
+            data: productData?.priceHistory.map((h) => h.price) || [],
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: (context: any) => {
+              const ctx = context.chart.ctx;
+              const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+              gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)');
+              gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+              return gradient;
+            },
+            fill: true,
+            tension: 0.4,
+            pointRadius: isMobile ? 3 : 5,
+            pointHoverRadius: isMobile ? 5 : 8,
+            borderWidth: 2,
+          },
+        ],
+      };
+    
+      const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: false,
+          },
+          tooltip: {
+            mode: 'index' as const,
+            intersect: false,
+            backgroundColor: 'white',
+            titleColor: 'rgb(51, 65, 85)',
+            bodyColor: 'rgb(71, 85, 105)',
+            borderColor: 'rgb(226, 232, 240)',
+            borderWidth: 1,
+            padding: 12,
+            bodyFont: {
+              size: 14
+            },
+            titleFont: {
+              size: 14,
+              weight: 'bold'
+            },
+            displayColors: false,
+            callbacks: {
+              label: function(context: any) {
+                return `$${context.raw.toFixed(2)}`;
+              }
+            }
           }
-        }
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false
         },
-        ticks: {
-          maxRotation: isMobile ? 45 : 0,
-          minRotation: isMobile ? 45 : 0,
-          font: {
-            size: isMobile ? 10 : 12
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              maxRotation: isMobile ? 45 : 0,
+              minRotation: isMobile ? 45 : 0,
+              font: {
+                size: isMobile ? 10 : 12
+              },
+              color: 'rgb(100, 116, 139)'
+            }
           },
-          color: 'rgb(100, 116, 139)'
-        }
-      },
-      y: {
-        beginAtZero: false,
-        grid: {
-          color: 'rgb(241, 245, 249)'
+          y: {
+            beginAtZero: false,
+            grid: {
+              color: 'rgb(241, 245, 249)'
+            },
+            ticks: {
+              callback: function(value: any) {
+                return '$' + value;
+              },
+              font: {
+                size: isMobile ? 10 : 12
+              },
+              color: 'rgb(100, 116, 139)'
+            }
+          }
         },
-        ticks: {
-          callback: function(value: any) {
-            return '$' + value;
-          },
-          font: {
-            size: isMobile ? 10 : 12
-          },
-          color: 'rgb(100, 116, 139)'
+        interaction: {
+          mode: 'nearest' as const,
+          axis: 'x' as const,
+          intersect: false
         }
-      }
-    },
-    interaction: {
-      mode: 'nearest' as const,
-      axis: 'x' as const,
-      intersect: false
-    }
-  };
-    // Dosya yükleme işlemi
-    async function handleImageDrop(acceptedFiles: File[]) {
+      };
+    
+      // Dosya yükleme işlemi
+      async function handleImageDrop(acceptedFiles: File[]) {
         if (acceptedFiles.length === 0) return;
         
         setScanning(true);
         setError(null);
         
         try {
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          await processCode(TEST_PRODUCT.asin);
+          const formData = new FormData();
+          formData.append('image', acceptedFiles[0]);
+    
+          const response = await axios.post('/api/barcode', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+    
+          if (response.data.asin) {
+            await processCode(response.data.asin);
+          } else {
+            throw new Error('Barkod okunamadı');
+          }
         } catch (err) {
-          setError('Görüntüden barkod okunamadı. Lütfen tekrar deneyin.');
+          setError(err instanceof Error ? err.message : 'Görüntüden barkod okunamadı');
+          setProductData(null);
         } finally {
           setScanning(false);
         }
@@ -254,6 +261,7 @@ export default function Scanner() {
         setSuccess(null);
       }
     
+      // ASIN işleme
       const processCode = async (code: string) => {
         setScanning(true);
         setError(null);
@@ -261,22 +269,22 @@ export default function Scanner() {
     
         try {
           if (!code.match(/^[A-Z0-9]{10}$/)) {
-            throw new Error('Geçersiz ASIN formatı. Lütfen doğru bir ASIN girin.');
+            throw new Error('Geçersiz ASIN formatı');
           }
     
-          if (code === TEST_PRODUCT.asin) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            setProductData(TEST_PRODUCT);
-            setSuccess(`Ürün bulundu: ${TEST_PRODUCT.title}`);
-            setManualInput('');
-            setShowResults(true);
-            return;
-          }
+          const response = await axios.get(`/api/products/${code}`);
+          const product = response.data;
     
-          throw new Error('Bu ASIN için ürün bulunamadı. Lütfen test ASIN kullanın: B0CHX3QBCH');
-    
+          setProductData(product);
+          setSuccess(`Ürün bulundu: ${product.title}`);
+          setManualInput('');
+          setShowResults(true);
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Bir hata oluştu');
+          if (axios.isAxiosError(err)) {
+            setError(err.response?.data?.message || 'Bir hata oluştu');
+          } else {
+            setError(err instanceof Error ? err.message : 'Bir hata oluştu');
+          }
           setProductData(null);
         } finally {
           setScanning(false);
@@ -289,6 +297,7 @@ export default function Scanner() {
         await processCode(manualInput.trim().toUpperCase());
       };
     
+      // Cleanup on unmount
       useEffect(() => {
         return () => {
           stopScanner();
@@ -297,6 +306,17 @@ export default function Scanner() {
     
       return (
         <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+          {/* Mobile Back Button */}
+          {isMobile && showResults && (
+            <button
+              onClick={() => setShowResults(false)}
+              className="flex items-center gap-2 text-slate-600 mb-4"
+            >
+              <ChevronLeft className="w-5 h-5" />
+              <span>Geri</span>
+            </button>
+          )}
+    
           {/* Input Section */}
           {(!showResults || !isMobile) && (
             <div className="bg-white rounded-3xl shadow-xl p-6">
@@ -333,7 +353,7 @@ export default function Scanner() {
                           type="text"
                           value={manualInput}
                           onChange={(e) => setManualInput(e.target.value)}
-                          placeholder="Amazon ASIN girin (Test: B0CHX3QBCH)"
+                          placeholder="Amazon ASIN girin (örn: B0CHX3QBCH)"
                           className="w-full h-14 pl-14 pr-4 rounded-2xl bg-slate-100/50 focus:bg-white
                             border-2 border-transparent focus:border-primary/20 outline-none
                             transition-all duration-300 text-lg"
@@ -416,7 +436,7 @@ export default function Scanner() {
           {/* Alerts */}
           {(error || success) && (
             <div className={`
-              fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96
+              fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-50
               transition-all duration-500 transform
               ${error || success ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
             `}>
@@ -563,7 +583,7 @@ export default function Scanner() {
                       </tr>
                     </thead>
                     <tbody>
-                      {productData.priceHistory.map((history: any, index: number) => {
+                      {productData.priceHistory.map((history, index) => {
                         const prevPrice = index > 0 ? productData.priceHistory[index - 1].price : history.price;
                         const change = history.price - prevPrice;
                         return (
