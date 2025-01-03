@@ -1,23 +1,5 @@
-// src/services/keepaService.ts
 import axios from 'axios';
-
-export interface KeepaProduct {
-  asin: string;
-  title: string;
-  currentPrice: number | null;
-  previousPrice: number | null;
-  imageUrl: string;
-  lastUpdated: string;
-  priceHistory: {
-    date: string;
-    price: number;
-  }[];
-  stats: {
-    lowestPrice: number | null;
-    highestPrice: number | null;
-    averagePrice: number | null;
-  };
-}
+import type { KeepaProduct, PriceStats, KeepaApiResponse } from '@/types/keepa';
 
 class KeepaService {
   private readonly apiKey: string;
@@ -34,135 +16,151 @@ class KeepaService {
 
   async getProductDetails(asin: string): Promise<KeepaProduct> {
     try {
-      const response = await axios.get(this.baseUrl, {
-        params: {
-          key: this.apiKey,
-          domain: 1,
-          asin: asin,
-          stats: 90,
-          offers: 1, // Satıcı tekliflerini de al
-          priceTypes: ['1', '2', '3'], // Farklı fiyat tiplerini al
-          history: true
+      // Keepa API'nin beklediği formatta URL oluştur
+      const url = `${this.baseUrl}?key=${this.apiKey}&domain=1&asin=${asin}&stats=180`;
+
+      console.log('Requesting Keepa API:', url.replace(this.apiKey, '***'));
+
+      const response = await axios.get<KeepaApiResponse>(url, {
+        headers: {
+          'Accept': 'application/json'
         }
       });
 
-      const data = response.data;
+      console.log('API Response:', {
+        status: response.status,
+        data: response.data
+      });
 
-      if (data.error) {
-        throw new Error(data.error.message || 'Keepa API hatası');
+      if (response.data.error) {
+        console.error('Keepa API Error:', response.data.error);
+        throw new Error(response.data.error.message);
       }
 
-      if (!data.products || data.products.length === 0) {
+      const product = response.data.products?.[0];
+      if (!product) {
         throw new Error('Ürün bulunamadı');
       }
 
-      const product = data.products[0];
+      // CSV verilerinden fiyat geçmişini çıkar
       const priceHistory = this.processKeepaHistory(product.csv);
-      const currentPriceData = this.getCurrentPrice(product);
+      
+      // İstatistikleri çıkar
+      const stats = this.extractStats(product.stats || {});
 
-      return {
+      const result = {
         asin: product.asin,
-        title: product.title,
-        currentPrice: currentPriceData.current,
-        previousPrice: currentPriceData.previous,
+        title: product.title || 'İsimsiz Ürün',
+        currentPrice: this.getCurrentPrice(product),
         imageUrl: this.getProductImage(product),
-        lastUpdated: new Date(product.lastUpdate * 1000).toISOString(),
+        lastUpdate: new Date(product.lastUpdate * 1000).toISOString(),
         priceHistory,
-        stats: this.calculateStats(priceHistory)
+        stats
       };
+
+      console.log('Processed Result:', result);
+
+      return result;
+
     } catch (error) {
-      console.error('Keepa API Error:', error);
+      console.error('Keepa API Error Details:', {
+        error,
+        isAxiosError: axios.isAxiosError(error),
+        response: axios.isAxiosError(error) ? error.response?.data : null
+      });
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const message = error.response?.data?.error?.message || error.message;
+
+        switch (status) {
+          case 400:
+            throw new Error('API Hatası: ASIN veya domain parametresi geçersiz');
+          case 401:
+            throw new Error('API Hatası: API anahtarı geçersiz veya eksik');
+          case 403:
+            throw new Error('API Hatası: API erişimi reddedildi');
+          case 429:
+            throw new Error('API Hatası: İstek limiti aşıldı');
+          case 404:
+            throw new Error('API Hatası: Ürün bulunamadı');
+          default:
+            throw new Error(`API Hatası: ${message}`);
+        }
+      }
+
       throw error;
     }
   }
 
-  private getCurrentPrice(product: any): { current: number | null; previous: number | null } {
-    let current = null;
-    let previous = null;
-
-    // Amazon fiyatı
-    if (product.stats?.current) {
-      current = this.convertKeepaPrice(product.stats.current);
+  private getCurrentPrice(product: any): number | null {
+    if (product.stats?.current?.[0] !== undefined && product.stats.current[0] !== -1) {
+      return this.convertKeepaPrice(product.stats.current[0]);
     }
-
-    // Yeni satıcı fiyatı
-    if (current === null && product.stats?.newPrice) {
-      current = this.convertKeepaPrice(product.stats.newPrice);
-    }
-
-    // Liste fiyatı
-    if (product.stats?.listPrice) {
-      previous = this.convertKeepaPrice(product.stats.listPrice);
-    }
-
-    // Ortalama fiyat
-    if (previous === null && product.stats?.avg) {
-      previous = this.convertKeepaPrice(product.stats.avg);
-    }
-
-    return { current, previous };
+    return null;
   }
 
-  private convertKeepaPrice(keepaPrice: number): number | null {
-    if (!keepaPrice || keepaPrice === -1) return null;
-    return Number((keepaPrice / 100).toFixed(2));
+  private extractStats(stats: any): PriceStats {
+    const getPrice = (arr: number[] | undefined, index: number = 0): number | null => {
+      if (!arr || !Array.isArray(arr) || arr[index] === undefined || arr[index] === -1) {
+        return null;
+      }
+      return this.convertKeepaPrice(arr[index]);
+    };
+
+    return {
+      current: getPrice(stats.current),
+      avg30: getPrice(stats.avg30),
+      avg90: getPrice(stats.avg90),
+      avg180: getPrice(stats.avg180),
+      min30: getPrice(stats.min30),
+      min90: getPrice(stats.min90),
+      min180: getPrice(stats.min180),
+      max30: getPrice(stats.max30),
+      max90: getPrice(stats.max90),
+      max180: getPrice(stats.max180)
+    };
   }
 
   private processKeepaHistory(csvData: any): { date: string; price: number }[] {
     if (!csvData || !Array.isArray(csvData[0])) return [];
 
-    const result: { date: string; price: number }[] = [];
-    const amazonPrices = csvData[0]; // Amazon fiyat geçmişi
-    const newPrices = csvData[1]; // Yeni satıcı fiyat geçmişi
+    const result = [];
+    const prices = csvData[0]; // Amazon price history
 
-    for (let i = 0; i < amazonPrices.length; i += 2) {
-      const timestamp = amazonPrices[i];
-      let price = amazonPrices[i + 1];
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 180);
 
-      // Amazon fiyatı yoksa yeni satıcı fiyatını kullan
-      if (price === -1 && newPrices && newPrices[i + 1] !== -1) {
-        price = newPrices[i + 1];
-      }
+    for (let i = 0; i < prices.length; i += 2) {
+      const timestamp = prices[i];
+      const price = prices[i + 1];
 
       if (timestamp && price && price !== -1) {
-        const convertedPrice = this.convertKeepaPrice(price);
-        if (convertedPrice !== null) {
-          result.push({
-            date: new Date(timestamp * 60000).toISOString(),
-            price: convertedPrice
-          });
+        const date = new Date(timestamp * 60000);
+        if (date >= cutoffDate) {
+          const convertedPrice = this.convertKeepaPrice(price);
+          if (convertedPrice !== null) {
+            result.push({
+              date: date.toISOString(),
+              price: convertedPrice
+            });
+          }
         }
       }
     }
 
-    return result;
+    return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }
 
-  private calculateStats(priceHistory: { date: string; price: number }[]): {
-    lowestPrice: number | null;
-    highestPrice: number | null;
-    averagePrice: number | null;
-  } {
-    if (priceHistory.length === 0) {
-      return {
-        lowestPrice: null,
-        highestPrice: null,
-        averagePrice: null
-      };
-    }
-
-    const prices = priceHistory.map(h => h.price);
-    const sum = prices.reduce((a, b) => a + b, 0);
-
-    return {
-      lowestPrice: Math.min(...prices),
-      highestPrice: Math.max(...prices),
-      averagePrice: Number((sum / prices.length).toFixed(2))
-    };
+  private convertKeepaPrice(keepaPrice: number): number | null {
+    if (typeof keepaPrice !== 'number' || keepaPrice === -1) return null;
+    return Number((keepaPrice / 100).toFixed(2));
   }
 
   private getProductImage(product: any): string {
-    if (!product.imagesCSV) return '';
+    if (!product.imagesCSV) {
+      return 'https://via.placeholder.com/300?text=No+Image';
+    }
     const imageId = product.imagesCSV.split(',')[0];
     return `https://images-na.ssl-images-amazon.com/images/I/${imageId}`;
   }
