@@ -24,16 +24,18 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler,
+    ChartOptions,
+    ChartData,
+  } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { formatPrice, formatDate, getPriceColor, getPriceStatus } from '@/utils/price';
@@ -107,6 +109,7 @@ const PriceStat: React.FC<PriceStatProps> = ({
   );
 };
 
+
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center space-x-2 animate-pulse">
     <div className="w-2 h-2 bg-primary rounded-full"></div>
@@ -157,106 +160,106 @@ export default function Scanner() {
     const isMobile = useMediaQuery('(max-width: 768px)');
   
     // Chart data
-    const chartData = {
-      labels: productData?.priceHistory.map(h => formatDate(h.date)) || [],
-      datasets: [
-        {
-          label: 'Fiyat',
-          data: productData?.priceHistory.map(h => h.price) || [],
-          borderColor: 'rgb(99, 102, 241)',
-          backgroundColor: (context: any) => {
-            const ctx = context.chart.ctx;
-            const gradient = ctx.createLinearGradient(0, 0, 0, 300);
-            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)');
-            gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
-            return gradient;
+    const chartData: ChartData<'line'> = {
+        labels: productData?.priceHistory.map(h => formatDate(h.date)) || [],
+        datasets: [
+          {
+            label: 'Fiyat',
+            data: productData?.priceHistory.map(h => h.price) || [],
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: (context: any) => {
+              const ctx = context.chart.ctx;
+              const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+              gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)');
+              gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+              return gradient;
+            },
+            fill: true,
+            tension: 0.4,
+            pointRadius: isMobile ? 3 : 5,
+            pointHoverRadius: isMobile ? 5 : 8,
+            borderWidth: 2,
           },
-          fill: true,
-          tension: 0.4,
-          pointRadius: isMobile ? 3 : 5,
-          pointHoverRadius: isMobile ? 5 : 8,
-          borderWidth: 2,
-        },
-        {
-          label: '90 Günlük Ortalama',
-          data: productData?.priceHistory.map(() => productData.stats.avg90) || [],
-          borderColor: 'rgba(234, 179, 8, 0.5)',
-          borderDash: [5, 5],
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: false,
-        }
-      ],
-    };
+          {
+            label: '90 Günlük Ortalama',
+            data: productData?.priceHistory.map(() => productData.stats.avg90) || [],
+            borderColor: 'rgba(234, 179, 8, 0.5)',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+          }
+        ],
+      };
   
-    const chartOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top' as const,
-          align: 'end' as const,
-          labels: {
-            usePointStyle: true,
-            padding: 20,
-            font: {
-              size: 12
+    const chartOptions: ChartOptions<'line'> = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            display: true,
+            position: 'top',
+            align: 'end',
+            labels: {
+              usePointStyle: true,
+              padding: 20,
+              font: {
+                size: 12
+              }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: 'white',
+            titleColor: 'rgb(51, 65, 85)',
+            bodyColor: 'rgb(71, 85, 105)',
+            borderColor: 'rgb(226, 232, 240)',
+            borderWidth: 1,
+            padding: 12,
+            bodyFont: { size: 14 },
+            titleFont: { size: 14, weight: 'bold' },
+            displayColors: false,
+            callbacks: {
+              label: function(context) {
+                return `Fiyat: ${formatPrice(context.raw as number)}`;
+              }
             }
           }
         },
-        tooltip: {
-          mode: 'index' as const,
-          intersect: false,
-          backgroundColor: 'white',
-          titleColor: 'rgb(51, 65, 85)',
-          bodyColor: 'rgb(71, 85, 105)',
-          borderColor: 'rgb(226, 232, 240)',
-          borderWidth: 1,
-          padding: 12,
-          bodyFont: { size: 14 },
-          titleFont: { size: 14, weight: 'bold' },
-          displayColors: false,
-          callbacks: {
-            label: function(context: any) {
-              return `Fiyat: ${formatPrice(context.raw)}`;
+        scales: {
+          x: {
+            grid: {
+              display: false
+            },
+            ticks: {
+              maxRotation: isMobile ? 45 : 0,
+              font: {
+                size: isMobile ? 10 : 12
+              },
+              color: 'rgb(100, 116, 139)'
+            }
+          },
+          y: {
+            beginAtZero: false,
+            grid: {
+              color: 'rgb(241, 245, 249)'
+            },
+            ticks: {
+              callback: (value) => formatPrice(value as number),
+              font: {
+                size: isMobile ? 10 : 12
+              },
+              color: 'rgb(100, 116, 139)'
             }
           }
-        }
-      },
-      scales: {
-        x: {
-          grid: {
-            display: false
-          },
-          ticks: {
-            maxRotation: isMobile ? 45 : 0,
-            font: {
-              size: isMobile ? 10 : 12
-            },
-            color: 'rgb(100, 116, 139)'
-          }
         },
-        y: {
-          beginAtZero: false,
-          grid: {
-            color: 'rgb(241, 245, 249)'
-          },
-          ticks: {
-            callback: (value: any) => formatPrice(value),
-            font: {
-              size: isMobile ? 10 : 12
-            },
-            color: 'rgb(100, 116, 139)'
-          }
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
         }
-      },
-      interaction: {
-        mode: 'nearest' as const,
-        axis: 'x' as const,
-        intersect: false
-      }
-    };
+      };
   
     // Dosya yükleme işlemi
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
