@@ -11,25 +11,39 @@ class KeepaService {
       throw new Error('KEEPA_API_KEY is not defined');
     }
     this.apiKey = apiKey;
+    // Keepa API Temel URL
     this.baseUrl = 'https://api.keepa.com/product';
   }
 
+  // Ürün detaylarını getir
   async getProductDetails(asin: string): Promise<KeepaProduct> {
     try {
-      // Keepa API'nin beklediği formatta URL oluştur
+      /**
+       * "domain" parametresi:
+       * 1 => Amazon.com (ABD)
+       * 2 => Amazon.co.uk
+       * 3 => Amazon.de
+       * 4 => Amazon.fr
+       * 8 => Amazon.es
+       * 9 => Amazon.it
+       * 10 => Amazon.com.tr
+       * vb...
+       * 
+       * TR ürünleri için genellikle domain=10 kullanılır
+       */
       const url = `${this.baseUrl}?key=${this.apiKey}&domain=1&asin=${asin}&stats=180`;
 
       console.log('Requesting Keepa API:', url.replace(this.apiKey, '***'));
 
       const response = await axios.get<KeepaApiResponse>(url, {
         headers: {
-          'Accept': 'application/json'
-        }
+          Accept: 'application/json',
+        },
       });
 
       console.log('API Response:', {
         status: response.status,
-        data: response.data
+        data: response.data,
       });
 
       if (response.data.error) {
@@ -44,10 +58,11 @@ class KeepaService {
 
       // CSV verilerinden fiyat geçmişini çıkar
       const priceHistory = this.processKeepaHistory(product.csv);
-      
+
       // İstatistikleri çıkar
       const stats = this.extractStats(product.stats || {});
 
+      // Dönüş
       const result = {
         asin: product.asin,
         title: product.title || 'İsimsiz Ürün',
@@ -55,20 +70,18 @@ class KeepaService {
         imageUrl: this.getProductImage(product),
         lastUpdate: new Date(product.lastUpdate * 1000).toISOString(),
         priceHistory,
-        stats
+        stats,
       };
 
       console.log('Processed Result:', result);
-
       return result;
-
     } catch (error) {
       console.error('Keepa API Error Details:', {
         error,
         isAxiosError: axios.isAxiosError(error),
-        response: axios.isAxiosError(error) ? error.response?.data : null
+        response: axios.isAxiosError(error) ? error.response?.data : null,
       });
-      
+
       if (axios.isAxiosError(error)) {
         const status = error.response?.status;
         const message = error.response?.data?.error?.message || error.message;
@@ -93,15 +106,23 @@ class KeepaService {
     }
   }
 
+  // Mevcut fiyatı al
   private getCurrentPrice(product: any): number | null {
-    if (product.stats?.current?.[0] !== undefined && product.stats.current[0] !== -1) {
+    if (
+      product.stats?.current?.[0] !== undefined &&
+      product.stats.current[0] !== -1
+    ) {
       return this.convertKeepaPrice(product.stats.current[0]);
     }
     return null;
   }
 
+  // İstatistikleri ayrıştır
   private extractStats(stats: any): PriceStats {
-    const getPrice = (arr: number[] | undefined, index: number = 0): number | null => {
+    const getPrice = (
+      arr: number[] | undefined,
+      index: number = 0
+    ): number | null => {
       if (!arr || !Array.isArray(arr) || arr[index] === undefined || arr[index] === -1) {
         return null;
       }
@@ -118,16 +139,17 @@ class KeepaService {
       min180: getPrice(stats.min180),
       max30: getPrice(stats.max30),
       max90: getPrice(stats.max90),
-      max180: getPrice(stats.max180)
+      max180: getPrice(stats.max180),
     };
   }
 
+  // Keepa CSV verisinden geçmişi ayrıştır
   private processKeepaHistory(csvData: any): { date: string; price: number }[] {
     if (!csvData || !Array.isArray(csvData[0])) return [];
 
     const result = [];
-    const prices = csvData[0]; // Amazon price history
-
+    // csvData[0] => Amazon price history
+    const prices = csvData[0];
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - 180);
 
@@ -137,26 +159,31 @@ class KeepaService {
 
       if (timestamp && price && price !== -1) {
         const date = new Date(timestamp * 60000);
+        // 180 günlük tarih süzmesi
         if (date >= cutoffDate) {
           const convertedPrice = this.convertKeepaPrice(price);
           if (convertedPrice !== null) {
             result.push({
               date: date.toISOString(),
-              price: convertedPrice
+              price: convertedPrice,
             });
           }
         }
       }
     }
 
-    return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return result.sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
   }
 
+  // Keepa fiyatını çevirmek (100'e bölmek)
   private convertKeepaPrice(keepaPrice: number): number | null {
     if (typeof keepaPrice !== 'number' || keepaPrice === -1) return null;
     return Number((keepaPrice / 100).toFixed(2));
   }
 
+  // Ürüne ait görüntü linkini oluştur
   private getProductImage(product: any): string {
     if (!product.imagesCSV) {
       return 'https://via.placeholder.com/300?text=No+Image';

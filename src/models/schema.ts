@@ -1,8 +1,9 @@
 // src/models/schema.ts
-import mongoose from 'mongoose';
+import mongoose, { model } from 'mongoose';
 
 // Kullanıcı Şeması
 const UserSchema = new mongoose.Schema({
+  id: String,
   name: String,
   email: String,
   image: String,
@@ -44,5 +45,5 @@ const SCAN_LIMITS = {
   PRO_PLUS: 1000
 };
 
-export const User = model('User', userSchema);
-export const Product = model('Product', productSchema);
+export const User = model('User', UserSchema);
+export const Product = model('Product', ProductSchema);
