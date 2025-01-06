@@ -4,40 +4,12 @@ import { useState, useEffect } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import axios from 'axios';
 import {
-  Heart,
-  BarChart4,
-  TrendingDown,
-  TrendingUp,
-  DollarSign,
-  ExternalLink,
-  Info,
-  Search,
-  X,
-  AlertCircle
+  Heart, BarChart4, TrendingDown, TrendingUp, DollarSign,
+  ExternalLink, Info, Search, X, AlertCircle, ArrowLeft, ArrowRight
 } from 'lucide-react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-  ChartOptions,
-  ChartData
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { formatPrice, formatDate, getPriceColor } from '@/utils/price';
+import { formatPrice, getPriceColor } from '@/utils/price';
 
-// Types
-export interface PriceHistory {
-  date: string;
-  price: number;
-}
-
+// Types remain the same
 export interface PriceStats {
   avg90: number | null;
   min90: number | null;
@@ -50,137 +22,176 @@ export interface Favorite {
   imageUrl: string;
   currentPrice: number;
   lastUpdate: string;
-  priceHistory: PriceHistory[];
   stats: PriceStats;
 }
 
-// Chart.js register
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
-
-interface PriceStatProps {
-  title: string;
-  value: number | null;
-  comparison?: number | null;
-  icon?: React.ReactNode;
-  trend?: 'up' | 'down' | 'neutral';
-  period?: string;
-  info?: string;
-}
-
-const PriceStat: React.FC<PriceStatProps> = ({
-  title,
-  value,
-  comparison,
-  icon,
-  trend,
-  period,
-  info
-}) => {
-  const [showInfo, setShowInfo] = useState(false);
-  const priceColor = getPriceColor(value, comparison);
-
-  if (value === null) return null;
-
-  return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-shadow duration-300 relative">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          {icon}
-          <span>{title}</span>
-          {info && (
-            <button
-              className="text-slate-400 hover:text-slate-600 transition-colors"
-              onClick={() => setShowInfo(!showInfo)}
-            >
-              <Info className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-        {trend && (
-          <div
-            className={`flex items-center gap-1 text-xs font-medium rounded-full px-2 py-1
-            ${
-              trend === 'down'
-                ? 'bg-green-100 text-green-700'
-                : trend === 'up'
-                ? 'bg-red-100 text-red-700'
-                : 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {trend === 'down' && <TrendingDown className="w-3 h-3" />}
-            {trend === 'up' && <TrendingUp className="w-3 h-3" />}
-            {trend === 'neutral' && <BarChart4 className="w-3 h-3" />}
-            {period}
-          </div>
-        )}
-      </div>
-      <div className={`text-2xl font-bold mt-2 ${priceColor}`}>
-        {formatPrice(value)}
-      </div>
-      {showInfo && info && (
-        <div className="absolute bottom-full left-0 w-full p-3 bg-white rounded-lg shadow-lg border border-slate-200 text-sm text-slate-600 mb-2 z-10">
-          {info}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const ProductCard: React.FC<{
-  product: Favorite;
-  onRemove: (asin: string) => void;
-  onSelect: (product: Favorite) => void;
-  isSelected: boolean;
-}> = ({ product, onRemove, onSelect, isSelected }) => (
+const ProductCard = ({ product, onRemove, onSelect, isSelected }) => (
   <div 
     className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer
       ${isSelected ? 'ring-2 ring-primary' : ''}`}
     onClick={() => onSelect(product)}
   >
-    <div className="p-4 flex gap-4">
-      <div className="w-24 h-24 bg-slate-100/50 rounded-xl p-2 flex items-center justify-center">
-        <img
-          src={product.imageUrl}
-          alt={product.title}
-          className="w-full h-full object-contain"
-        />
-      </div>
-      
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-medium text-slate-800 truncate">{product.title}</h3>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(product.asin);
-            }}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors flex-shrink-0"
-          >
-            <Heart className="w-5 h-5 fill-current" />
-          </button>
+    <div className="p-4 sm:p-6">
+      <div className="flex gap-4 sm:gap-6">
+        <div className="w-24 h-24 sm:w-32 sm:h-32 bg-slate-100/50 rounded-xl p-2 flex items-center justify-center flex-shrink-0">
+          <img
+            src={product.imageUrl}
+            alt={product.title}
+            className="w-full h-full object-contain"
+          />
         </div>
         
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-lg font-bold text-primary">
-            {formatPrice(product.currentPrice)}
-          </span>
-          {product.stats.avg90 !== null && (
-            <span className={`text-sm ${getPriceColor(product.currentPrice, product.stats.avg90)}`}>
-              vs. 90-Day Avg: {formatPrice(product.stats.avg90)}
-            </span>
-          )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-semibold text-slate-800 text-base sm:text-lg line-clamp-2">{product.title}</h3>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(product.asin);
+              }}
+              className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors flex-shrink-0"
+            >
+              <Heart className="w-5 h-5 fill-current" />
+            </button>
+          </div>
+          
+          <div className="mt-2 sm:mt-3">
+            <div className="flex items-baseline gap-2 sm:gap-3">
+              <span className="text-xl sm:text-2xl font-bold text-primary">
+                {formatPrice(product.currentPrice)}
+              </span>
+              {product.stats.avg90 && (
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-sm font-medium ${product.currentPrice < product.stats.avg90 ? 'text-green-600' : 'text-red-600'}`}>
+                    {((product.currentPrice - product.stats.avg90) / product.stats.avg90 * 100).toFixed(1)}%
+                  </span>
+                  <span className="text-sm text-slate-500">vs avg</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 sm:mt-4 hidden sm:block">
+            <div className="flex flex-wrap gap-3 text-sm">
+              {product.stats.min90 && (
+                <div className="flex items-center gap-1.5 text-green-600">
+                  <TrendingDown className="w-4 h-4" />
+                  <span>Low: {formatPrice(product.stats.min90)}</span>
+                </div>
+              )}
+              {product.stats.max90 && (
+                <div className="flex items-center gap-1.5 text-red-600">
+                  <TrendingUp className="w-4 h-4" />
+                  <span>High: {formatPrice(product.stats.max90)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 sm:mt-4 flex items-center justify-between">
+            <div className="text-xs sm:text-sm text-slate-500 flex items-center gap-1">
+              {product.stats.min90 && product.currentPrice === product.stats.min90 && (
+                <div className="flex items-center gap-1 text-green-600">
+                  <TrendingDown className="w-3 h-3" />
+                  Best Price Now
+                </div>
+              )}
+            </div>
+            <a
+              href={`https://www.amazon.com/dp/${product.asin}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-600 hover:text-primary transition-colors"
+            >
+              View on Amazon
+              <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+            </a>
+          </div>
         </div>
       </div>
     </div>
+  </div>
+);
+
+const ProductDetails = ({ product }) => (
+  <div className="bg-white rounded-3xl shadow-xl">
+    <div className="p-4 sm:p-6 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+        <div className="w-full sm:w-32 h-48 sm:h-32 bg-slate-100/50 rounded-xl p-3 flex items-center justify-center">
+          <img
+            src={product.imageUrl}
+            alt={product.title}
+            className="w-full h-full object-contain"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg sm:text-xl font-bold text-slate-800 mb-3">
+            {product.title}
+          </h3>
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-2xl font-bold text-primary">
+              {formatPrice(product.currentPrice)}
+            </span>
+            {product.stats.avg90 && (
+              <span className={`text-sm font-medium ${getPriceColor(product.currentPrice, product.stats.avg90)}`}>
+                {product.currentPrice < product.stats.avg90 ? 'Below' : 'Above'} Average Price
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-4 mt-4">
+            <a
+              href={`https://www.amazon.com/dp/${product.asin}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl
+                bg-primary text-white text-sm font-medium
+                hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5
+                transition-all duration-300"
+            >
+              <ExternalLink className="w-4 h-4" />
+              View on Amazon
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {product.stats.avg90 && (
+      <div className="p-4 sm:p-6 bg-slate-50/50 rounded-b-3xl">
+        <div className="space-y-4">
+          <div>
+            <div className="text-sm text-slate-500 mb-1">Current vs Average</div>
+            <div className={`text-lg sm:text-xl font-bold ${product.currentPrice < product.stats.avg90 ? 'text-green-600' : 'text-red-600'}`}>
+              {((product.currentPrice - product.stats.avg90) / product.stats.avg90 * 100).toFixed(1)}%
+              <span className="text-sm font-medium text-slate-600 ml-2">
+                ({formatPrice(Math.abs(product.currentPrice - product.stats.avg90))} {product.currentPrice > product.stats.avg90 ? 'more' : 'less'})
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
+            <div>
+              <div className="text-sm text-slate-500 mb-1">Current Price</div>
+              <div className="text-base sm:text-lg font-semibold text-slate-800">
+                {formatPrice(product.currentPrice)}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-slate-500 mb-1">Average Price</div>
+              <div className="text-base sm:text-lg font-semibold text-slate-800">
+                {formatPrice(product.stats.avg90)}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-slate-500 mb-1">Price Changes</div>
+              <div className="text-base sm:text-lg font-semibold text-slate-800">
+                Last 90 days
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
   </div>
 );
 
@@ -190,21 +201,23 @@ export default function Favorites() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Favorite | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Load favorites
+  const itemsPerPage = 5;
+
   useEffect(() => {
     const loadFavorites = async () => {
       if (status === 'authenticated') {
         try {
           const response = await axios.get('/api/favorites');
-          setFavorites(response.data);
-          if (response.data.length > 0) {
-            setSelectedProduct(response.data[0]);
+          const sortedFavorites = response.data.sort((a: Favorite, b: Favorite) => 
+            new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime()
+          );
+          setFavorites(sortedFavorites);
+          if (sortedFavorites.length > 0) {
+            setSelectedProduct(sortedFavorites[0]);
           }
         } catch (err) {
-          console.error('Load favorites error:', err);
           if (axios.isAxiosError(err)) {
             setError(err.response?.data?.error || 'Failed to load favorites');
           } else {
@@ -216,7 +229,27 @@ export default function Favorites() {
     loadFavorites();
   }, [status]);
 
-  // Remove from favorites
+  useEffect(() => {
+    if (searchQuery) {
+      setCurrentPage(1);
+    }
+  }, [searchQuery]);
+
+  const filteredFavorites = favorites.filter((favorite) =>
+    favorite.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredFavorites.length / itemsPerPage);
+  const currentItems = filteredFavorites.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const removeFavorite = async (asin: string) => {
     try {
       await axios.delete(`/api/favorites/${asin}`);
@@ -225,128 +258,11 @@ export default function Favorites() {
         setSelectedProduct(null);
       }
     } catch (err) {
-      console.error('Remove favorite error:', err);
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.error || 'Failed to remove from favorites');
       } else {
         setError('Failed to remove from favorites');
       }
-    }
-  };
-
-  // Filter favorites based on search
-  const filteredFavorites = favorites.filter((favorite) =>
-    favorite.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Chart data & options for selected product
-  const chartData = {
-    labels: selectedProduct?.priceHistory.map((h) => formatDate(h.date)) || [],
-    datasets: [
-      {
-        label: 'Price',
-        data: selectedProduct?.priceHistory.map((h) => h.price) || [],
-        borderColor: '#6366f1',
-        backgroundColor: '#6366f120',
-        fill: true,
-        tension: 0.4,
-        pointRadius: isMobile ? 3 : 5,
-        pointHoverRadius: isMobile ? 5 : 8,
-        borderWidth: 2
-      },
-      {
-        label: '90-Day Average',
-        data: Array(selectedProduct?.priceHistory.length).fill(selectedProduct?.stats.avg90 || 0),
-        borderColor: '#eab308',
-        borderDash: [5, 5],
-        borderWidth: 2,
-        pointRadius: 0,
-        fill: false
-      }
-    ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-        align: 'end' as const,
-        labels: {
-          boxWidth: 10,
-          usePointStyle: true,
-          pointStyle: 'circle',
-          padding: 20,
-          font: {
-            size: 12
-          }
-        }
-      },
-      tooltip: {
-        mode: 'index' as const,
-        intersect: false,
-        backgroundColor: '#ffffff',
-        titleColor: '#334155',
-        bodyColor: '#475569',
-        borderColor: '#e2e8f0',
-        borderWidth: 1,
-        padding: 12,
-        bodyFont: {
-          size: 14
-        },
-        titleFont: {
-          size: 14,
-          weight: 'bold'
-        },
-        displayColors: false,
-        callbacks: {
-          label: function(context: any) {
-            let label = context.dataset.label || '';
-            if (label) {
-              label += ': ';
-            }
-            if (context.parsed.y !== null) {
-              label += formatPrice(context.parsed.y);
-            }
-            return label;
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        grid: {
-          display: false
-        },
-        ticks: {
-          maxRotation: isMobile ? 45 : 0,
-          font: {
-            size: isMobile ? 10 : 12
-          },
-          color: '#64748b'
-        }
-      },
-      y: {
-        beginAtZero: false,
-        grid: {
-          color: '#f1f5f9'
-        },
-        ticks: {
-          callback: function(value: any) {
-            return formatPrice(value);
-          },
-          font: {
-            size: isMobile ? 10 : 12
-          },
-          color: '#64748b'
-        }
-      }
-    },
-    interaction: {
-      mode: 'nearest' as const,
-      axis: 'x' as const,
-      intersect: false
     }
   };
 
@@ -391,7 +307,7 @@ export default function Favorites() {
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <h1 className="text-3xl font-bold text-slate-800">My Favorites</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">My Favorites</h1>
           
           {/* Search */}
           <div className="w-full sm:w-72 relative">
@@ -405,6 +321,14 @@ export default function Favorites() {
                 transition-all duration-300"
             />
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -423,8 +347,8 @@ export default function Favorites() {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Favorites List */}
-            <div className="lg:col-span-1 space-y-4">
-              {filteredFavorites.map((favorite) => (
+            <div className="space-y-4">
+              {currentItems.map((favorite) => (
                 <ProductCard
                   key={favorite.asin}
                   product={favorite}
@@ -433,117 +357,55 @@ export default function Favorites() {
                   isSelected={selectedProduct?.asin === favorite.asin}
                 />
               ))}
+              
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-8 bg-white p-4 rounded-2xl shadow-lg overflow-x-auto">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className={`p-2 rounded-xl transition-colors flex-shrink-0 ${
+                      currentPage === 1 
+                        ? 'text-slate-300' 
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all flex-shrink-0
+                        ${currentPage === page 
+                          ? 'bg-primary text-white font-medium shadow-lg shadow-primary/25' 
+                          : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className={`p-2 rounded-xl transition-colors flex-shrink-0 ${
+                      currentPage === totalPages 
+                        ? 'text-slate-300' 
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Selected Product Details */}
+            {/* Selected Product Details - Desktop */}
             {selectedProduct && (
-              <div className="lg:col-span-2 space-y-6">
-                {/* Price Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Current Price */}
-                  <PriceStat
-                    title="Current Price"
-                    value={selectedProduct.currentPrice}
-                    comparison={selectedProduct.stats.avg90}
-                    icon={<DollarSign className="w-4 h-4" />}
-                    info="The current selling price of this product."
-                  />
-
-                  {/* 90-Day Average */}
-                  <PriceStat
-                    title="90-Day Average"
-                    value={selectedProduct.stats.avg90}
-                    icon={<BarChart4 className="w-4 h-4 text-blue-500" />}
-                    trend="neutral"
-                    period="90 days"
-                    info="The average price over the last 90 days."
-                  />
-
-                  {/* 90-Day Low */}
-                  <PriceStat
-                    title="90-Day Low"
-                    value={selectedProduct.stats.min90}
-                    icon={<TrendingDown className="w-4 h-4 text-green-500" />}
-                    trend="down"
-                    period="90 days"
-                    info="Lowest price over the last 90 days."
-                  />
-
-                  {/* 90-Day High */}
-                  <PriceStat
-                    title="90-Day High"
-                    value={selectedProduct.stats.max90}
-                    icon={<TrendingUp className="w-4 h-4 text-red-500" />}
-                    trend="up"
-                    period="90 days"
-                    info="Highest price over the last 90 days."
-                  />
-                </div>
-
-                {/* Detailed Product Info */}
-                <div className="bg-white rounded-3xl shadow-xl">
-                  {/* Product Header */}
-                  <div className="p-6 border-b border-slate-100">
-                    <div className="flex items-start gap-6">
-                      <div className="w-32 h-32 bg-slate-100/50 rounded-xl p-3 flex items-center justify-center flex-shrink-0">
-                        <img
-                          src={selectedProduct.imageUrl}
-                          alt={selectedProduct.title}
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-xl font-bold text-slate-800 mb-3">
-                          {selectedProduct.title}
-                        </h3>
-                        <div className="flex flex-wrap items-center gap-4">
-                          <span className="text-2xl font-bold text-primary">
-                            {formatPrice(selectedProduct.currentPrice)}
-                          </span>
-                          {selectedProduct.stats.avg90 && (
-                            <span className={`text-sm font-medium ${getPriceColor(selectedProduct.currentPrice, selectedProduct.stats.avg90)}`}>
-                              {selectedProduct.currentPrice < selectedProduct.stats.avg90 ? 'Below' : 'Above'} Average Price
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-4 mt-4">
-                          <div className="text-sm text-slate-500">
-                            Last update: {formatDate(selectedProduct.lastUpdate)}
-                          </div>
-                          <a
-                            href={`https://www.amazon.com/dp/${selectedProduct.asin}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl
-                              bg-primary text-white text-sm font-medium
-                              hover:shadow-lg hover:shadow-primary/25 hover:-translate-y-0.5
-                              transition-all duration-300"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            View on Amazon
-                          </a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Price Analysis */}
-                  {selectedProduct.stats.avg90 && (
-                    <div className="p-6 bg-slate-50/50 rounded-b-3xl">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <div className="text-sm text-slate-500 mb-1">Current vs Average</div>
-                          <div className={`text-xl font-bold ${selectedProduct.currentPrice < selectedProduct.stats.avg90 ? 'text-green-600' : 'text-red-600'}`}>
-                            {((selectedProduct.currentPrice - selectedProduct.stats.avg90) / selectedProduct.stats.avg90 * 100).toFixed(1)}%
-                            <span className="text-sm font-medium text-slate-600 ml-2">
-                              ({formatPrice(Math.abs(selectedProduct.currentPrice - selectedProduct.stats.avg90))} {selectedProduct.currentPrice > selectedProduct.stats.avg90 ? 'more' : 'less'})
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+              <div className="lg:col-span-2">
+                <ProductDetails product={selectedProduct} />
               </div>
             )}
           </div>
